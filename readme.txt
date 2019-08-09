@@ -1,5 +1,7 @@
 Red Team infastructure VM
 
+To build this template from scratch -See the bottom section "Building Template from Scratch"
+    
 Key Requirements:
   - Create Template connected to real world internet, then after installing cobaltstike run the /root/cobaltstrike/update
     - This is also stated in the PostTemplateBuild.sh script.
@@ -109,3 +111,20 @@ HAProxy redirection
 	  You can change the default non-c2 traffic URL, or customize what part of the 
 	  profile you want to use for the ACLs by looking at the buildredteam.sh script 
 	  and modifying the BuildHAProxyConfig function.  It's pretty straightforward.
+	  
+Building Template from Scratch
+  - Create a VM using ubuntu-18.04.2-live-server-amd64.iso
+    - give the VM 2GB of ram and 8GB of storage
+    - If you are using VMware workstation - make sure you set "Store virtual Disk as a single File"
+    - Once the VM's OS is up and running, do the following
+       -$ sudo bash
+       -# passwd <- set the password you want.
+       -# sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+       -# service ssh restart
+    - Then copy PreTemplateBuild.sh to your VM, chmod 755 the script and run it.  It will take a while depending on your internet.
+    - When it finishes, download cobaltstrike and extract it to /root/
+    - Then update cobaltstike - /root/cobaltstike/update
+      - enter your license when asked.
+    - Finally pull PostTemplateBuild.sh to your VM, chmod 755 the script and run it.
+    - When it finishes, delete both PreTemplateBuild.sh and PostTemplateBuild.sh
+    - Now you can shut down the VM, scp the vm's VMDK to the RGI, convert to qcow2, make your RGI VM template and thats it.
