@@ -89,9 +89,12 @@ Capabilities
 	 Then in /root/scripts/phish/ there are a couple of example bash scripts for sending out 
 	 individual attacks or loop through a email list.
      The emaillist.txt is one for a previous exercise we've ran.
- -Work that still needs done.
+
+Work that still needs done.
 	- Adding custom port options to the redirector build.
 	- Upgrading phishing to a full featured platform like gophish for example.
+	- Add support for RedELK, filebeat 6.4.1 is installed already and the log format for HAproxy 
+	to support RedELK is added by the buildredteam.sh script when you make a HAProxy redirector.
 
 HAProxy redirection
     - This script is designed to only use the "set uri" settings from a C2 profile for 
