@@ -746,7 +746,7 @@ ExecAndValidate()
   # add a return to seperate script execution output.
   echo "" 
   # Build required configurations and start services
-  if [[ $hostnamesel != "" ]]; then hostname $hostnamesel; fi
+  if [[ $hostnamesel != "" ]]; then hostnamectl set-hostname $hostnamesel; fi
   if [[ $setips == 1 ]]; then 
     echo -ne "\t$yellow  Building IP's Now...."
     BuildIntConfig
