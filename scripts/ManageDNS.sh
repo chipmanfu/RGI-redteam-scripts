@@ -31,7 +31,6 @@ fi
 # additionally zone file references are added to named.conf and are tagged between the
 # following comment list "//REDTEAMSTART-hostname" and "//REDTEAMEND-hostname" 
 hostin=`hostname`
-
 # set conf file location
 DNSconf="/root/scripts/redteamDNS.txt"
 
@@ -89,7 +88,7 @@ DeleteDNSMenu()
     2) delopt=2; DeleteDNS;;
     b|B) DNSMenu;;
     q|Q) echo -e "$default"; exit 0;;
-    *) echo -e "\n\t\t$red Invalid Selection, Please try again"; sleep 2
+    *) echo -e "\n\t\t$red Invalid Selection, Please try again$default"; sleep 2
        DeleteDNSMenu;;
   esac
 }
@@ -109,7 +108,7 @@ DeleteDNS()
     echo -e "\n\t$red Script error, script exiting, not even sure how you made this happen."
     echo -e "$default"; exit 0;
   fi
-  echo -en "\t$ltblue Enter y to continue "
+  echo -en "\t$ltblue Enter y to continue $default "
   read answer 
   case $answer in
      y|Y|yes|YES|Yes) 
@@ -122,11 +121,11 @@ DeleteDNS()
        elif [[ $delopt == 2 ]]; then
          ssh 198.41.0.4 "/root/scripts/delete-REDTEAM-DNS.sh $hostin"
          echo -e "\n\t$green All Red Team DNS tagged with $hostin have been deleted," 
-         echo -e "\t I hope you really wanted to do this."
+         echo -e "\t I hope you really wanted to do this.$default"
        fi;;
      b|B) DeleteDNSMenu;;
      q|Q) echo -e "$default"; exit 0;;
-     *) echo -e "\n\t\t$red Invalid Selection, Please try again"; sleep 2
+     *) echo -e "\n\t\t$red Invalid Selection, Please try again $default"; sleep 2
         DeleteDNS;;
    esac
    
@@ -145,7 +144,7 @@ AddDNSMenu()
     2)  random=1; ExecAndValidate;;
     b|B) DNSMenu;;
     q|Q) echo -e "$default"; exit 0;;
-    *) echo -e "\n\t\t$red Invalid Selection, Please try again"; sleep 2
+    *) echo -e "\n\t\t$red Invalid Selection, Please try again $default"; sleep 2
        AddDNSMenu;;
   esac
 }
@@ -153,7 +152,7 @@ AddDNSMenu()
 ManualDNS()
 {
   MenuBanner
-  intname=`ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2;getline}'`
+  intname=`ip link | awk -F: '$0 !~ "lo|vir|docker|wl|^[^0-9]"{print $2;getline}'`
   iplist=`ip a | grep $intname | grep inet | awk '{print $2}' | cut -d/ -f1`
   numip=`echo "$iplist" | wc -l`
   if [[ $numip == 1 ]]; then
@@ -202,7 +201,7 @@ ManualDNS()
            IPselected=`echo "$iplist" | sed -n ${answer}p`
            DNSentry
          else 
-           echo -e "\n\t\t$red Invalid Selection, Please try again"; sleep 2
+           echo -e "\n\t\t$red Invalid Selection, Please try again $default"; sleep 2
            ManualDNS
          fi;;
     esac
@@ -247,7 +246,8 @@ ExecAndValidate()
     echo -e "\t If this is what you want to do, you should make a copy of the"
     echo -e "\t current /root/dnsfile.txt before running this."
     echo -e "\t If this is the first time, then no worries\n"
-    read -p "       Are you sure you want to continue <y or n>: " ans
+    echo -en "\t Are you sure you want to continue <y or n>: $default " 
+    read ans
     case $ans in
       y|Y|yes|YES|Yes) ;;
       n|N|no|NO|No) DNSMenu; exit;;
@@ -261,11 +261,11 @@ ExecAndValidate()
     scp 198.41.0.4:/root/scripts/autoredirector/dnsfile.txt /root/dnsfile.txt
     ssh 198.41.0.4 'rm /root/scripts/autoredirector/dnsfile.txt'
     echo -e "$green  DNS Records assigned to the redirector IPs."  
-    echo -e "$green  See /root/dnsfile.txt for a list of your domains.$default\n\n"
+    echo -e "$green  See /root/dnsfile.txt for a list of your domains. $default\n\n"
   else
     if [ ! -s $DNSconf ]
     then
-      echo -e "\n\t$yellow No manually created DNS records found, script is exiting$default\n" 
+      echo -e "\n\t$yellow No manually created DNS records found, script is exiting $default\n" 
       exit 0;
     fi
     # Tag the DNS file with the servers hostname
