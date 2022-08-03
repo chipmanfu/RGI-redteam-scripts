@@ -35,26 +35,34 @@ default="\e[0m"
 #             -> PortMenu  <- Jump here if No to NeedIPsMenu  
 #               -> RedirDestMenu
 #                 ->  HostnameMenu   
-#                   -> ExecAndValidate
+#                   ->  CampaignMenu   
+#                     -> ExecAndValidate
 #   -> Option 2 Set up a HAProxy Redirector
 #     -> NeedIPsMenu
 #       -> CountryMenu
 #         -> CityMenu
 #           -> NumIPsMenu
 #             -> PortMenu  <- Jump here if NO to NeedIPsMenu
-#               -> C2profilemenu
-#                 -> RedirDestMenu
-#                   -> HostnameMenu
-#                     -> ExecAndValidate
+#               -> RedirDestMenu
+#                 -> HostmenuMenu
+#                   ->  CampaignMenu   
+#                     -> csc2CollectionMenu
+#                       -> csc2typeMenu
+#                         -> csc2profileMenu
+#                           -> DecoyMenu
+#                             -> ExecAndValidate
 #   -> Option 3 Set up a Cobalt Strike teamserver
 #     -> NeedIPsCSMenu 
 #       -> CountryMenu
 #         -> CityMenu
 #           -> SetIPOption  Optional side path -> SetStaticIP
-#             -> csc2typeMenu  <-Jump here if no to NeedIPsCSMenu
-#               -> csc2profileMenu
-#                 -> csc2passwdMenu
-#                   -> ExecAndValidate
+#             -> csc2CollectionMenu <- Jump here if no to NeedIPsCSMenu
+#               -> csc2typeMenu 
+#                 -> csc2profileMenu
+#                   -> csc2passwdMenu
+#                     ->  HostnameMenu   
+#                       ->  CampaignMenu   
+#                         -> ExecAndValidate
 #   -> Option 4 Set up payload host server
 #     -> NeedIPsMenu -- Option "use current IPs" jumps to ExecAndValidate
 #       -> CountryMenu
@@ -95,6 +103,7 @@ ShowCurrentSettings()
     echo -e "\t\t$white Current settings" 
   fi
   if [[ ! -z  $hostnamesel ]]; then SettingFormat "Hostname" "$hostnamesel"; fi
+  if [[ ! -z $campaign ]]; then SettingFormat "Campaign name" "$campaign"; fi
   if [[ ! -z $countrysel ]]; then SettingFormat "Country Selected" "$countrysel"; fi
   if [[ ! -z $citysel ]]; then SettingFormat "City Selected" "$citysel"; fi
   if [[ ! -z $totalipssel ]]; then SettingFormat "Number of IP's" "$totalipssel"; fi
@@ -103,8 +112,10 @@ ShowCurrentSettings()
   if [[ ! -z $haprofile ]]; then SettingFormat "C2 Profile" "$haprofile"; fi
   if [[ ! -z $portsel ]]; then SettingFormat "Ports Selected" "$portsel"; fi
   if [[ ! -z $rediripsel ]]; then SettingFormat "Redir Dest IP" "$rediripsel"; fi
+  if [[ ! -z $collectionsel ]]; then SettingFormat "C2 Collection" "$collectionsel"; fi
   if [[ ! -z $profiletypesel ]]; then SettingFormat "C2 Profile Type" "$profiletypesel"; fi
   if [[ ! -z $csc2profilesel ]]; then SettingFormat "C2 Profile" "$csc2profilesel"; fi
+  if [[ ! -z $decoysite ]]; then SettingFormat "HA Proxy Decoy site" "$decoysite"; fi
   if [[ ! -z $passwordsel ]]; then SettingFormat "Password" "$passwordsel"; fi
 }
 
@@ -155,7 +166,7 @@ MainMenu()
 {
   # Set initial variables, Resets values if user navigates back to the beginning
   opt=0;setips=0; setredirdest=0; setcsts=0; setpayloadhost=0; curipon=0; staticIPin=0; randomipon=0
-  setnginx=0; sethaproxy=0; hostnamesel=; countrysel=; citysel=; totalipssel=; staticIPsel=; portsel=; 
+  setnginx=0; sethaproxy=0; campaign=; hostnamesel=; countrysel=; citysel=; totalipssel=; staticIPsel=; portsel=; 
   rediripsel=; profiletypesel=; csc2profilesel=; passwordin=;
   # Calls menu Banner
   MenuBanner
@@ -208,7 +219,7 @@ NeedIPsMenu()
 NeedIPsCSMenu()
 {
   MenuBanner
-  intname=`ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2;getline}'`
+  intname=`ip link | awk -F: '$0 !~ "lo|vir|docker|wl|^[^0-9]"{print $2;getline}'`
   iplist=`ip a | grep $intname | grep inet | awk '{print $2}' | cut -d/ -f1`
   numip=`echo "$iplist" | wc -l`
   if [[ $numip == 1 ]]; then
@@ -220,7 +231,7 @@ NeedIPsCSMenu()
     echo -en "\n\t$ltblue Enter a Selection: $white"
     read optin 
     case $optin in
-      1)  staticipon=1; staticIPsel=$curIP; csc2typeMenu;;
+      1)  staticipon=1; staticIPsel=$curIP; csc2CollectionMenu;;
       2)  setips=1; CountryMenu;;
       b|B) MainMenu;;
       q|Q) echo -e "$default"; exit 0;;
@@ -249,11 +260,9 @@ NeedIPsCSMenu()
       $count) setips=1; CountryMenu;;
       b|B) MainMenu;;
       q|Q) echo -e "$default"; exit 0;;
-      c|C) cp /dev/null $DNSconf; ManualDNS;; 
-      d|D) ExecAndValidate;;
       *) if (( $answer >= 1 && $answer <= $count )) 2>/dev/null; then
            IPselected=`echo "$iplist" | sed -n ${answer}p`
-           staticipon=1; staticIPsel=$IPselected; csc2typeMenu
+           staticipon=1; staticIPsel=$IPselected; csc2CollectionMenu
          else 
 	   InputError
            NeedIPsCSMenu
@@ -359,7 +368,7 @@ SetIPOption()
     1) staticipon=1; totalipssel=1; SetStaticIP;;
     2) randomipon=1; totalipssel=1; 
        if [[ $setcsts == 1 ]]; then
-         csc2typeMenu
+         csc2CollectionMenu
        else
          ExecAndValidate
        fi;;
@@ -404,7 +413,7 @@ SetStaticIP()
           done
           if [[ $found == "yes" ]]; then
             if [[ $setcsts == 1 ]]; then
-              csc2typeMenu
+              csc2CollectionMenu
             else	
               ExecAndValidate
             fi
@@ -509,7 +518,7 @@ RedirDestMenu()
     curredirIP=`grep -m 1 "server teamserver" /etc/haproxy/haproxy.cfg | awk '{print$3}' | cut -d: -f1`
   fi
   if [[ $curredirIP != "" ]]; then
-    usecurIP=$curredirIP
+    usecurIP=$curredirIPRedirDestMenu
     echo -e "\n\t$ltblue The current redirection IP is$green $usecurIP$ltblue To use this IP, just press enter."
     echo -e "\t To change it enter a new IP below"
   fi
@@ -525,7 +534,7 @@ RedirDestMenu()
   if [[ $? -eq 0 ]]; then
     if [[ $opt == 6 ]]; then 
       if [[ $setnginx == 1 ]]; then ExecAndValidate;
-      elif [[ $sethaproxy == 1 ]]; then GetC2ProfileMenu;
+      elif [[ $sethaproxy == 1 ]]; then csc2CollectionMenu;
       fi
     else
       HostnameMenu
@@ -594,14 +603,19 @@ HostnameMenu()
   read ans
   case $ans  in
     q|Q) echo -e "$default"; exit 0;;
-    b|B) rediripsel=; RedirDestMenu;;
+    b|B) if [[ $opt == 3 ]]; then
+	    passwordsel=;
+	    csc2passwdMenu
+	 else
+	    rediripsel=;
+	    RedirDestMenu 
+	 fi;;
     1) hostnamesel=`hostname`;;
     2) hostnamesel=$rhostname;;
     3) SetHostname; exit;;
     *) InputError; HostnameMenu; exit;;
   esac 
-  if [[ $opt == 2 ]]; then GetC2ProfileMenu;
-  else ExecAndValidate; fi     
+  CampaignMenu
 }
 
 SetHostname()
@@ -623,14 +637,58 @@ SetHostname()
   esac 
 }
 
+csc2CollectionMenu()
+{
+  MenuBanner
+  if [[ $sethaproxy == 1 ]]; then
+     curprofile=`grep Malleable /etc/haproxy/haproxy.cfg | cut -d: -f2`
+  fi
+  if [[ ! -z $curprofile ]]
+  then
+    SettingFormat "Current Profile" "$curprofile"
+    echo -e "\n\t$blue Just press Enter to use existing profile, otherwise"
+  else
+    echo ""
+  fi
+  # Sets Initial Variables, resets values if user navigates back.
+  count=1
+  # Lists options, gets user input, process the input
+  echo -e "\t$ltblue Select a Cobalt Strike C2 Malleable profile Collection$ltblue"
+  for folder in `ls $csc2path`; do
+    FormatOptions "$count" "$folder"
+    let "count++";
+  done
+  echo -ne "\n\t$ltblue Enter a Selection Here: $white"
+  read collectionin
+  case $collectionin in 
+    q|Q) echo -e "$default"; exit 0;;
+    b|B) staticIPsel=; randomipon=0;
+         if [[ $sethaproxy == 1 ]]; then
+	   campaign=;
+	   CampaignMenu;
+         else NeedIPsCSMenu
+         fi;;
+      *) if (( $collectionin >= 1 && $collectionin < $count )) 2>/dev/null; then
+           collectionsel=`ls $csc2path | sed -n ${collectionin}p`
+           csc2typeMenu
+         elif [[ $collectionin == "" ]]; then
+           haprofile=$curprofile
+           DecoyMenu
+         else
+           InputError
+           csc2CollectionMenu
+         fi;;
+  esac
+}
+
 csc2typeMenu()
  {
   MenuBanner
   # Sets initial variables, resets values if user navigates back.
   count=1
   # List options, get user input, process the input
-  echo -e "\n\t$ltblue Select a base Cobalt Strike C2 Malleable profile$ltblue"
-  for folder in `ls $csc2path`; do
+  echo -e "\n\t$ltblue Select a Cobalt Strike C2 Malleable profile type$ltblue"
+  for folder in `ls $csc2path/$collectionsel`; do
     FormatOptions "$count" "$folder" 
     let "count++";
   done
@@ -638,9 +696,9 @@ csc2typeMenu()
   read profiletype 
   case $profiletype in
     q|Q) echo -e "$default"; exit 0;;
-    b|B) staticIPsel=; randomipon=0; NeedIPsCSMenu;;
+    b|B) collectionsel=; csc2CollectionMenu;;
       *) if (( $profiletype >= 1 && $profiletype < $count )) 2>/dev/null; then
-           profiletypesel=`ls $csc2path  | sed -n ${profiletype}p`
+           profiletypesel=`ls $csc2path/$collectionsel  | sed -n ${profiletype}p`
            csc2profileMenu
          else
            InputError
@@ -656,13 +714,13 @@ csc2profileMenu()
   count=1
   # List options, get user input, process the input
   echo -e "\n\t$ltblue Select a Profile$ltblue"
-  pcount=`ls $csc2path/$profiletypesel | wc -l`
+  pcount=`ls $csc2path/$collectionsel/$profiletypesel | wc -l`
   if [[ $pcount -le 0 ]]; then
     echo -e "\t$red Sorry there are no profiles listed in"
-    echo -e "\t$csc2path/$profiletypesel"
+    echo -e "\t$csc2path/$collectionsel/$profiletypesel"
     echo -en "\t$ltblue Press b to go back and try another profile type$white"
   else
-    for file in `ls $csc2path/$profiletypesel | sed -e 's/\.txt//'`; do
+    for file in `ls $csc2path/$collectionsel/$profiletypesel | sed -e 's/\.txt//'`; do
       FormatOptions "$count" "$file"
       let "count++";
     done
@@ -673,12 +731,58 @@ csc2profileMenu()
     q|Q) echo -e "$default"; exit 0;;
     b|B) profiletypesel=; csc2typeMenu;;
       *) if (( $profile >= 1 && $profile< $count )) 2>/dev/null; then
-           csc2profilesel=`ls $csc2path/$profiletypesel | sed -n ${profile}p`
-           csc2passwdMenu     
+           csc2profilesel=`ls $csc2path/$collectionsel/$profiletypesel | sed -n ${profile}p`
+           if [[ $sethaproxy == 1 ]]; then 
+             haprofile=$collectionsel/$profiletypesel/$csc2profilesel
+             DecoyMenu
+           else
+             csc2passwdMenu
+           fi
          else
            InputError
            csc2profileMenu
          fi;;
+   esac
+}
+DecoyMenu()
+{
+  MenuBanner
+   echo -e "\n\t$ltblue Set the decoy website that HAProxy will use.$ltblue"
+   echo -e "\t\t$ltblue The default is$yellow www.critter.com$ltblue"
+   echo -e "\n\t$ltblue To keep the default press <enter>.  Otherwise set it below.$ltblue"
+   echo -e "\t$ltblue NOTE: It has to be a site in the environment otherwise HAProxy will crash $ltblue"
+   echo -ne "\n\t$ltblue Enter a Decoy website here: $white"
+   read decoysite
+   case $decoysite in
+     q|Q)  echo -e "$default"; exit 0;;
+     b|B)  csc2profilesel=; decoysite=; csc2profileMenu;;
+       *)  if [[ $decoysite == "" ]]; then
+             decoysite="www.critter.com"
+           fi
+           ExecAndValidate;
+   esac
+}
+
+CampaignMenu()
+{
+  MenuBanner
+   echo -e "\n\t$ltblue Set the campaign name.$ltblue"
+   echo -e "\t\t$ltblue The default is$yellow default$ltblue"
+   echo -e "\n\t$ltblue To keep the default press <enter>.  Otherwise set it below.$ltblue"
+   echo -e "\t$ltblue NOTE: This will be used to correlate the event data in RedELK $ltblue"
+   echo -ne "\n\t$ltblue Enter a campaign name here: $white"
+   read campaign
+   case $campaign in
+     q|Q)  echo -e "$default"; exit 0;;
+     b|B)  campaign=; hostnamesel=; HostnameMenu;;
+       *)  if [[ $campaign == "" ]]; then
+             campaign="default"
+           fi
+	   if [[ $opt == 2 ]]; then
+	     collectionsel=;csc2CollectionMenu
+	   else
+	     ExecAndValidate
+	   fi
    esac
 }
 
@@ -696,7 +800,7 @@ csc2passwdMenu()
           csc2passwdMenu;;
      "")  echo -e "\n\t\t$red Password can't be blank, Please try again"; sleep 2
           csc2passwdMenu;;
-      *)  passwordsel=$passwordin; ExecAndValidate;;
+      *)  passwordsel=$passwordin; HostnameMenu;;
    esac
 }
   
@@ -720,8 +824,8 @@ ExecAndValidate()
   case $answer in
     q|Q) echo -e "$default"; exit 0;;
     b|B) case $opt in
-           1|2) hostnamesel=; HostnameMenu;;
-             3) passwordsel=; csc2passwdMenu;;
+           1|3) campaign=; CampaignMenu;;
+             2) decoysite=; DecoyMenu;;
              4) if (( $curipon == 1 )); then
                   curipon=0; NeedIPsMenu
                 else 
@@ -738,6 +842,8 @@ ExecAndValidate()
   service haproxy stop
   service nginx stop
   service apache2 stop
+  docker rm -f filebeat 2>/dev/null
+  rm -f /etc/cron.d/redelk 2>&1 >/dev/null
   # Catchall for anything else on required ports
   lsof -n -i4TCP:443 | grep "LISTEN" | awk '{print$2}' | uniq | xargs -r kill 2>/dev/null
   lsof -n -i4TCP:80 | grep "LISTEN" | awk '{print$2}' | uniq | xargs -r kill 2>/dev/null
@@ -746,7 +852,13 @@ ExecAndValidate()
   # add a return to seperate script execution output.
   echo "" 
   # Build required configurations and start services
-  if [[ $hostnamesel != "" ]]; then hostnamectl set-hostname $hostnamesel; fi
+  if [[ $hostnamesel != "" ]]; then 
+    hostnamectl set-hostname $hostnamesel; 
+    if test -f $IPfile; then
+      oldhostname=`grep "# Hostname" $IPfile | cut -d: -f2`
+      sed -i "s/$oldhostname/$hostnamesel/g" $IPfile
+    fi
+  fi
   if [[ $setips == 1 ]]; then 
     echo -ne "\t$yellow  Building IP's Now...."
     BuildIntConfig
@@ -787,22 +899,51 @@ ExecAndValidate()
     echo -ne "\t$yellow  Starting Apache2 Now...."
     systemctl start apache2
     echo -e "$green Finished!"
-  elif [[ $setcsts == 1 ]]; then 
+  elif [[ $setcsts == 1 ]]; then
+    echo -ne "\t$yellow Creating campain/host directory for RedELK Now...."
+    ssh -t re-http@199.85.64.123 "mkdir -p /home/re-http/cslogs/${campaign}/${hostnamesel}"
+    echo -e "$green Finished!"
+    echo -ne "\t$yellow Creating sync script for RedELK Now...."
+    echo '#!/bin/bash' > ./send-tslogs.sh
+    echo 'LOGFILE="/var/log/redelk-logging.log"' >> ./send-tslogs.sh
+    echo -e $'rsync -e "ssh -o StrictHostKeyChecking=no"'" -axv /root/cobaltstrike/logs re-http@199.85.64.123:/home/re-http/cslogs/${campaign}/${hostnamesel}/"' >> $LOGFILE 2>&1' >> /root/scripts/send-tslogs.sh
+    echo -e $'rsync -e "ssh -o StrictHostKeyChecking=no"'" -axv /root/cobaltstrike/downloads re-http@199.85.64.123:/home/re-http/cslogs/${campaign}/${hostnamesel}/"' >> $LOGFILE 2>&1' >> /root/scripts/send-tslogs.sh
+    echo -e $'rsync -e "ssh -o StrictHostKeyChecking=no"'" -axv /root/cobaltstrike/profiles re-http@199.85.64.123:/home/re-http/cslogs/${campaign}/${hostnamesel}/"' >> $LOGFILE 2>&1' >> /root/scripts/send-tslogs.sh
+    chmod +x /root/scripts/send-tslogs.sh
+    echo -e "$green Finished!"
+    echo -ne "\t$yellow Creating cronjob for RedELK sync Now...."
+    echo '*/2 * * * * root /root/scripts/send-tslogs.sh' > /etc/cron.d/redelk
+    echo -e "$green Finished!"
     echo "#!/bin/bash" > /root/start_teamserver.sh
     echo "cd $cspath" >> /root/start_teamserver.sh
     if [[ $staticipon == 1 ]]; then
-      echo "./teamserver $staticIPsel $passwordin $csc2path/$profiletypesel/$csc2profilesel" >> /root/start_teamserver.sh
+      echo "./teamserver $staticIPsel $passwordin $csc2path/$collectionsel/$profiletypesel/$csc2profilesel" >> /root/start_teamserver.sh
       printf "\t\t$ltgray%19s: $yellow%-20s\n" "IP set to" $staticIPsel
     else
-      echo "./teamserver $randomIPsel $passwordin $csc2path/$profiletypesel/$csc2profilesel" >> /root/start_teamserver.sh
+      echo "./teamserver $randomIPsel $passwordin $csc2path/$collectionsel/$profiletypesel/$csc2profilesel" >> /root/start_teamserver.sh
       printf "\t\t$ltgray%19s: $yellow%-20s\n" "IP set to" $randomIPsel
     fi
     echo -e "\n\t$green Starting Cobalt Strike Teamserver now.\n"
     echo -e "\t$white Press$yellow ctrl+c$white to kill teamserver.  Run$yellow /root/start_teamserver.sh$white to relaunch"
-    echo -e "\t\t$green C2 profile: $yellow $profiletypesel - $csc2profilesel" 
+    echo -e "\t\t$green C2 profile: $yellow $collectionsel - $profiletypesel - $csc2profilesel" 
     echo -e "\t\t$green Password:$yellow $passwordin\n"
     chmod 755 /root/start_teamserver.sh
-    /root/start_teamserver.sh
+    /root/start_teamserver.sh &
+  fi
+  if [[ $setnginx == 1 ]] || [[ $sethaproxy == 1 ]] || [[ $setcsts == 1 ]]; then
+    echo -ne "\t$yellow  Starting RedELK logging now...."
+    docker run -dit -e "HOST=${hostnamesel}" \
+                    -e "RE_LS=199.85.64.122:5044" \
+                    -e "CAMPAIGN=${campaign}" \
+                    -v "/var/log:/var/log:ro" \
+                    -v "/root/filebeat/registry:/usr/share/filebeat/data/registry" \
+                    -v "/root/cobaltstrike:/root/cobaltstrike:ro" \
+                    --restart always \
+                    --network host \
+                    --name filebeat \
+                    --log-opt max-size=3m \
+                    --log-opt max-file=3 \
+                    filebeat:redelk >/dev/null
   fi
   # Finished, show completion screen and bridge info.
   if [[ $setips == 1 ]]; then
@@ -861,29 +1002,34 @@ BuildHAProxyConfig()
   echo -e "  timeout connect  5000" >> $haproxyconf
   echo -e "  timeout client  10000" >> $haproxyconf
   echo -e "  timeout server  10000" >> $haproxyconf
-  echo -e "  log-format frontend:%f/%H/%fi:%fp\ backend:%b\ client:%ci:$cp\ GMT:%T\ useragent:%[capture.req.hdr(1)]\ body:%[capture.req.hdr(0)]\ request:%r" >> $haproxyconf
+  echo -e "  log-format GMT:%T\ frontend:%f/%H/%fi:%fp\ backend:%b\ client:%ci:%cp\ xforwardedfor:%[capture.req.hdr(3)]\ headers:%hr\ statuscode:%ST\ request:%r" >> $haproxyconf
   if [[ $https == 1 ]]; then 
     echo -e "\nfrontend www-https" >> $haproxyconf
     echo -e "  option http-buffer-request" >> $haproxyconf
     echo -e "  declare capture request len 40000" >> $haproxyconf
-    echo -e "  http-request capture req.body id 0" >> $haproxyconf
     echo -e "  capture request header User-Agent len 512" >> $haproxyconf
+    echo -e "  capture request header Host len 512" >> $haproxyconf
+    echo -e "  capture request header X-Forwarded-For len 512" >> $haproxyconf
+    echo -e "  capture request header X-Forwarded-Proto len 512" >> $haproxyconf
+    echo -e "  capture request header X-Host len 512" >> $haproxyconf
+    echo -e "  capture request header Forwarded len 512" >> $haproxyconf
+    echo -e "  capture request header Via len 512" >> $haproxyconf
     echo -e "  log /dev/log local2 debug" >> $haproxyconf
     echo -e "  bind :443 ssl crt /etc/haproxy/haproxy.pem" >> $haproxyconf
     echo -e "  reqadd X-Forwarded-Proto:\ https" >> $haproxyconf
     # add code to insert acl based on teamserver profile
     if [[ ! -z $haprofile ]]; then
-      for i in `grep "set uri" $csc2path/*/$haprofile  | awk -F '"' '{print$2}'`; do
+      for i in `grep "set uri" $csc2path/$haprofile  | awk -F '"' '{print$2}'`; do
         echo -e "  acl path_cs path -m beg $i" >> $haproxyconf
       done 
       echo -e "  acl path_cs path_reg ^/[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]$" >> $haproxyconf
-      echo -e "  use_backend cobaltstrike-https if path_cs" >> $haproxyconf
-      echo -e "  default_backend www-decoy" >> $haproxyconf
+      echo -e "  use_backend c2-https if path_cs" >> $haproxyconf
+      echo -e "  default_backend decoy-www" >> $haproxyconf
     else 
-      echo -e " default_backend cobaltstrike-https" >> $haproxyconf
+      echo -e " default_backend c2-https" >> $haproxyconf
     fi
     echo -e "  timeout client 1m" >> $haproxyconf
-    echo -e "\nbackend cobaltstrike-https" >> $haproxyconf
+    echo -e "\nbackend c2-https" >> $haproxyconf
     echo -e "  option forwardfor" >> $haproxyconf
     echo -e "  server teamserver $rediripsel:443 ssl verify none" >> $haproxyconf	
   fi
@@ -892,30 +1038,35 @@ BuildHAProxyConfig()
     echo -e "  mode http" >> $haproxyconf
     echo -e "  option http-buffer-request" >> $haproxyconf
     echo -e "  declare capture request len 40000" >> $haproxyconf
-    echo -e "  http-request capture req.body id 0" >> $haproxyconf
     echo -e "  capture request header User-Agent len 512" >> $haproxyconf
+    echo -e "  capture request header Host len 512" >> $haproxyconf
+    echo -e "  capture request header X-Forwarded-For len 512" >> $haproxyconf
+    echo -e "  capture request header X-Forwarded-Proto len 512" >> $haproxyconf
+    echo -e "  capture request header X-Host len 512" >> $haproxyconf
+    echo -e "  capture request header Forwarded len 512" >> $haproxyconf
+    echo -e "  capture request header Via len 512" >> $haproxyconf
     echo -e "  log /dev/log local2 debug" >> $haproxyconf
     echo -e "  bind :80" >> $haproxyconf
     echo -e "  reqadd X-Forwarded-Proto:\ http" >> $haproxyconf
     # add code to insert acl based on teamserver profile
     if [[ ! -z $haprofile ]]; then
-      for i in `grep "set uri" $csc2path/*/$haprofile  | awk -F '"' '{print$2}'`; do
+      for i in `grep "set uri" $csc2path/$haprofile  | awk -F '"' '{print$2}'`; do
         echo -e "  acl path_cs path -m beg $i" >> $haproxyconf
       done 
       echo -e "  acl path_cs path_reg ^/[a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9][a-zA-Z0-9]$" >> $haproxyconf
-      echo -e "  use_backend cobaltstrike-http if path_cs" >> $haproxyconf
-      echo -e "  default_backend www-decoy" >> $haproxyconf
+      echo -e "  use_backend c2-http if path_cs" >> $haproxyconf
+      echo -e "  default_backend decoy-www" >> $haproxyconf
     else 
-      echo -e " default_backend cobaltstrike-http" >> $haproxyconf
+      echo -e " default_backend c2-http" >> $haproxyconf
     fi
     echo -e "  timeout client 1m" >> $haproxyconf
-    echo -e "\nbackend cobaltstrike-http" >> $haproxyconf
+    echo -e "\nbackend c2-http" >> $haproxyconf
     echo -e "  option forwardfor" >> $haproxyconf
     echo -e "  server teamserver $rediripsel:80" >> $haproxyconf	
   fi
-  echo -e "\nbackend www-decoy" >> $haproxyconf
+  echo -e "\nbackend decoy-www" >> $haproxyconf
   echo -e "  mode http" >> $haproxyconf
-  echo -e "  server critter www.critter.com:80" >> $haproxyconf
+  echo -e "  server decoy $decoysite:80" >> $haproxyconf
 }
 
 BuildNGINXConfig()
@@ -930,29 +1081,61 @@ BuildNGINXConfig()
   echo -e "error_log /var/log/nginx.error_log info;" >> $nginxconf
   echo -e "\nload_module /usr/lib/nginx/modules/ngx_stream_module.so;" >> $nginxconf
   echo -e "\nevents {\n\tworker_connections 1024;\n}" >> $nginxconf
-  echo -e "\nstream {" >> $nginxconf
-  # Build required streams
-  if [[ $https == 1 ]]; then
-    echo -e "\n\tupstream ssl {\n\t\tserver $rediripsel:443;\n\t}" >> $nginxconf
-    echo -e "\n\tserver {" >> $nginxconf
-    while read p; do
-      if [[ $p == \#* ]]; then continue; fi
-      sip=`echo $p | cut -d/ -f1`
-      echo -e "\t\tlisten $sip:443;" >> $nginxconf
-    done<$IPfile
-    echo -e "\t\tproxy_pass ssl;\n\t}" >> $nginxconf
-  fi
-  if [[ $http == 1 ]]; then
-    echo -e "\n\tupstream http {\n\t\tserver $rediripsel:80;\n\t}" >> $nginxconf
-    echo -e "\n\tserver {" >> $nginxconf
-    while read p; do
-      if [[ $p == \#* ]]; then continue; fi
-      sip=`echo $p | cut -d/ -f1`
-      echo -e "\t\tlisten $sip:80;" >> $nginxconf
-    done<$IPfile
-    echo -e "\t\tproxy_pass http;\n\t}" >> $nginxconf
+  if [[ $https == 1 ]] || [[ $http == 1 ]]; then
+    echo -e "\nhttp {" >> $nginxconf
+    echo -e "\n\tmap \$redir_hostname \$redir_hostname {" >> $nginxconf
+    echo -e "\t\tdefault \"${hostnamesel}\";" >> $nginxconf
+    echo -e "\t}" >> $nginxconf
+    echo -e "\n\tmap \$backend_name \$backend_name {" >> $nginxconf
+    echo -e "\t\tdefault \"c2-www\";" >> $nginxconf
+    echo -e "\t}" >> $nginxconf
+    echo -e "\n\tmap \$frontend_name \$frontend_name {" >> $nginxconf
+    echo -e "\t\tdefault \"www-http\";" >> $nginxconf
+    echo -e "\t}" >> $nginxconf
+    echo -e "\n\tmap \$http_forwarded \$proxy_add_forwarded {" >> $nginxconf
+    echo -e "\t\t# If the incoming Forwarded header is syntactically valid, append to it" >> $nginxconf
+    echo $'		"~^(,[ ''\\t'']*)*([!#$%&'$'\'*+.^_`|~0-9A-Za-z-]+=([!#$%&\'*+.^_`|~0-9A-Za-z-]+|''\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?(;([!#$%&'$'\'*+.^_`|~0-9A-Za-z-]+=([!#$%&\'*+.^_`|~0-9A-Za-z-]+|''\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?)*([ \\t]*,([ \\t]*([!#$%&'$'\'*+.^_`|~0-9A-Za-z-]+=([!#$%&\'*+.^_`|~0-9A-Za-z-]+|''\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?(;([!#$%&'$'\'*+.^_`|~0-9A-Za-z-]+=([!#$%&\'*+.^_`|~0-9A-Za-z-]+|''\"([\\t \\x21\\x23-\\x5B\\x5D-\\x7E\\x80-\\xFF]|\\\\[\\t \\x21-\\x7E\\x80-\\xFF])*\"))?)*)?)*$" "$http_forwarded";' >> $nginxconf
+    echo -e "\t\t# Otherwise, replace it" >> $nginxconf
+    echo -e "\t\tdefault \"-\";" >> $nginxconf	
+    echo -e "\t}" >> $nginxconf
+    echo -e $'\n\tlog_format redelklog \'[$time_local] $redir_hostname nginx[$pid]: frontend:$frontend_name/$server_addr:$server_port backend:$backend_name client:$remote_addr:$remote_port xforwardedfor:$http_x_forwarded_for headers:{$http_user_agent|$host|$http_x_forwarded_for|$http_x_forwarded_proto|$http_x_forwarded_host|$proxy_add_forwarded|$http_via|} statuscode:$status request:$request\';' >> $nginxconf
+    echo -e "\n\taccess_log /var/log/nginx/access-redelk.log redelklog;" >> $nginxconf
+    if [[ $https == 1 ]]; then
+      while read p; do
+        if [[ $p == \#* ]]; then continue; fi
+        sip=`echo $p | cut -d/ -f1`
+        echo -e "\n\tserver {" >> $nginxconf
+        echo -e "\t\tlisten $sip:443 ssl;" >> $nginxconf
+        echo -e "\t\tlocation / {" >> $nginxconf
+        echo -e "\t\t\tproxy_pass https://$rediripsel;" >> $nginxconf
+        echo -e "\t\t\tproxy_ssl_verify off;" >> $nginxconf
+        echo -e "\t\t\tproxy_set_header Host \$host;" >> $nginxconf
+        echo -e "\t\t\tproxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> $nginxconf
+        echo -e "\t\t}" >> $nginxconf
+        echo -e "\t\tssl_certificate /etc/nginx/nginx.pem;" >> $nginxconf
+        echo -e "\t\tssl_certificate_key /etc/nginx/nginx-key.pem;" >> $nginxconf
+        echo -e "\t}" >> $nginxconf
+      done<$IPfile
+    fi 
+    if [[ $http == 1 ]]; then
+      while read p; do
+        if [[ $p == \#* ]]; then continue; fi
+        sip=`echo $p | cut -d/ -f1`
+        echo -e "\n\tserver {" >> $nginxconf
+        echo -e "\t\tlisten $sip:80;" >> $nginxconf
+        echo -e "\t\tlocation / {" >> $nginxconf
+        echo -e "\t\t\tproxy_pass http://$rediripsel;" >> $nginxconf
+        echo -e "\t\t\tproxy_ssl_verify off;" >> $nginxconf
+        echo -e "\t\t\tproxy_set_header Host \$host;" >> $nginxconf
+        echo -e "\t\t\tproxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> $nginxconf
+        echo -e "\t\t}" >> $nginxconf
+        echo -e "\t}" >> $nginxconf
+      done<$IPfile
+    fi
+    echo -e "}" >> $nginxconf
   fi
   if [[ $dns == 1 ]]; then
+    echo -e "\nstream {" >> $nginxconf
     echo -e "\n\tupstream dns {\n\t\tserver $rediripsel:53;\n\t}" >> $nginxconf
     echo -e "\n\tserver {" >> $nginxconf
     while read p; do
@@ -968,8 +1151,8 @@ BuildNGINXConfig()
       echo -e "\t\tlisten $sip:53 udp;" >> $nginxconf
     done<$IPfile
     echo -e "\t\tproxy_pass dns;\n\t}" >> $nginxconf
+    echo -e "\n}" >> $nginxconf
   fi
-  echo -e "\n}" >> $nginxconf
 }
 
 BuildIntConfig()
@@ -978,7 +1161,7 @@ BuildIntConfig()
   hostnamein=`hostname`
   dnssrv="17.72.153.88"
   # gets the name of the interface
-  intname=`ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2;getline}'`
+  intname=`ip link | awk -F: '$0 !~ "lo|vir|docker|wl|^[^0-9]"{print $2;getline}'`
   # Configuration file is built, now we process through it to create
   # a new interface config file.  This file will get moved to /etc/network/interfaces
   # Set the name for the configuration file that will get built.
