@@ -115,6 +115,7 @@ DeleteDNS()
        clear
        echo -e "\n\t$ltblue Deleting DNS records in 10 seconds, hit ctrl+C to abort"
        sleep 10
+       rm -rf /etc/haproxy/certs/*
        if [[ $delopt == 1 ]]; then
          ssh 198.41.0.4 '/root/scripts/delete-REDTEAM-DNS.sh'
          echo -e "\n\t$green All Red Team DNS has been deleted, I hope you really wanted to do this."
@@ -278,5 +279,25 @@ ExecAndValidate()
     echo -e "  DNS Records assigned to the redirector IPs."  
     echo -e "  See /root/dnsfile.txt for a list of your domains.$default\n\n"
   fi
+  for i in $(cat /root/dnsfile.txt | grep -vE '^#' | awk -F ',' '{print $1}'); do
+    mkdir /tmp/${i}
+    cd /tmp/${i}
+    wget -O- http://54.209.15.15:8080/api/v1/cfssl/newcert --post-data='{"request":{"key":{"algo":"rsa","size":2048},"hosts":["'${i}'","www.'${i}'"],"names":[{"O":"'${i}'"}],"CN":"'${i}'"}}' | /root/scripts/extract_certs.py
+  done
+  #Update nginx.conf
+  if [[ $(systemctl status nginx | grep "active (running)") ]]; then
+    systemctl stop nginx
+    ngx=True
+  fi
+  for i in $(cat /root/dnsfile.txt | grep -vE '^#' ); do
+    temp_ip=$(echo $i | awk -F ','  '{print $NF}') 
+    temp_hn=$(echo $i | awk -F ','  '{print $1}') 
+    sed -i "s/${temp_ip}\.crt/${temp_hn%.*}\.crt/g" /etc/nginx/nginx.conf
+    sed -i "s/${temp_ip}\.key/${temp_hn%.*}\.key/g" /etc/nginx/nginx.conf
+  done
+  if [[ $ngx == "True" ]]; then
+    systemctl start nginx
+  fi
+  rm -rf /tmp/*
 }
 DNSMenu
