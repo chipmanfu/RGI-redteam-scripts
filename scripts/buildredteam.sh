@@ -1015,7 +1015,7 @@ BuildHAProxyConfig()
     echo -e "  capture request header Forwarded len 512" >> $haproxyconf
     echo -e "  capture request header Via len 512" >> $haproxyconf
     echo -e "  log /dev/log local2 debug" >> $haproxyconf
-    echo -e "  bind :443 ssl crt /etc/haproxy/haproxy.pem" >> $haproxyconf
+    echo -e "  bind :443 ssl crt /etc/haproxy/certs" >> $haproxyconf
     echo -e "  reqadd X-Forwarded-Proto:\ https" >> $haproxyconf
     # add code to insert acl based on teamserver profile
     if [[ ! -z $haprofile ]]; then
@@ -1112,8 +1112,8 @@ BuildNGINXConfig()
         echo -e "\t\t\tproxy_set_header Host \$host;" >> $nginxconf
         echo -e "\t\t\tproxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;" >> $nginxconf
         echo -e "\t\t}" >> $nginxconf
-        echo -e "\t\tssl_certificate /etc/nginx/nginx.pem;" >> $nginxconf
-        echo -e "\t\tssl_certificate_key /etc/nginx/nginx-key.pem;" >> $nginxconf
+        echo -e "\t\tssl_certificate /etc/nginx/certs/${sip}.crt;" >> $nginxconf
+        echo -e "\t\tssl_certificate_key /etc/nginx/certs/${sip}.key;" >> $nginxconf
         echo -e "\t}" >> $nginxconf
       done<$IPfile
     fi 
@@ -1290,3 +1290,4 @@ BuildIntConfig()
 
 # Script execution actually starts here with a call to the MainMenu.
 MainMenu
+
